@@ -1,0 +1,38 @@
+{
+  "name": "puppeteer-extra-plugin-capsolver",
+  "version": "2.0.0",
+  "description": "Manage to solve captcha challenges with AI in a puppeteer-extra app (captcha service based).",
+  "main": "src/Plugin.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/0qwertyy/puppeteer-extra-plugin-capsolver.git"
+  },
+  "keywords": [
+    "recaptcha",
+    "hcaptcha",
+    "funcaptcha",
+    "datadome",
+    "geetest",
+    "puppeteer-extra",
+    "captcha-solver",
+    "2captcha",
+    "capsolver.com",
+    "capmonster"
+  ],
+  "author": "0qwertyy",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/0qwertyy/puppeteer-extra-plugin-capsolver/issues"
+  },
+  "homepage": "https://github.com/0qwertyy/puppeteer-extra-plugin-capsolver",
+  "dependencies": {
+    "axios": "^1.3.4",
+    "capsolver-npm": "^2.0.0",
+    "puppeteer": "^19.1.2",
+    "puppeteer-extra": "^3.3.4",
+    "puppeteer-extra-plugin": "^3.2.2"
+  }
+}
