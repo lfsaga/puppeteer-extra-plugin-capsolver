@@ -1,0 +1,2 @@
+- This plugin is intended to provide solutions to DOM challenge implementations.
+- The plugin is inteded to load another plugins on demand, find them in `src/features`.
