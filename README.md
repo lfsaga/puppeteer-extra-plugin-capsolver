@@ -13,6 +13,17 @@ manage to solve captcha challenges with puppeteer
 
 ## Usage
 
+- Import `puppeteer-extra` and the plugin package
+
+```typescript
+const puppeteer = require("puppeteer-extra");
+const {
+  SolverPlugin,
+  SolverPluginError,
+  SolverError,
+} = require("puppeteer-extra-plugin-capsolver");
+```
+
 #### Auto-load official Browser Extension
 
 - **How it works?** This feature would auto-load the extension from a zipped file into static temp folder on your disk, then would load from there on demand refreshing `apiKey` on load.
