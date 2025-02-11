@@ -1,33 +1,39 @@
 import { PuppeteerExtraPlugin } from "puppeteer-extra-plugin";
 import { Browser, Page } from "puppeteer";
 import { Solver } from "capsolver-npm";
-import fs from "fs";
+import fs from "fs-extra";
 import path from "path";
+import os from "os";
 import AdmZip from "adm-zip";
 import { SolverPluginOptions } from "./types";
+import { SolverPluginError } from "./errors";
 
 declare module "puppeteer" {
   interface Page {
     solver: () => Solver;
     setSolver: (opts: { apiKey: string }) => Promise<void>;
+    waitForSolverExtension?: ({
+      timeout,
+    }: {
+      timeout?: number;
+    }) => Promise<boolean>;
   }
 }
 
 export class SolverPlugin extends PuppeteerExtraPlugin {
-  private solver!: Solver;
-  private extensionZipPath: string;
-  public tempExtensionDir!: string;
+  private s!: Solver;
+  private ezp: string;
+  public tmd!: string;
 
   constructor(opts: Partial<SolverPluginOptions> = {}) {
     super(opts);
-    this.extensionZipPath = path.join(
+    this.ezp = path.join(
       __dirname,
       "resources",
       "capsolver-extension-v1.15.3.zip"
     );
 
-    // @ts-ignore
-    this.solver = new Solver({
+    this.s = new Solver({
       apiKey: this.opts.apiKey,
     });
   }
@@ -40,93 +46,26 @@ export class SolverPlugin extends PuppeteerExtraPlugin {
     const availableFeatures = new Set<string>([]);
     return {
       apiKey: null,
-      extensionConfig: null,
+      useExtension: false,
       availableFeatures,
       enabledFeatures: new Set([...availableFeatures]),
     };
   }
 
-  public initExtension(): void {
-    // @ts-ignore
-    this.solver = new Solver({
-      apiKey: this.opts.apiKey,
-    });
-
-    if (this.opts.extensionConfig !== null) {
-      this.tempExtensionDir = "/tmp/capsolver-extension";
-
-      const zip = new AdmZip(this.extensionZipPath);
-      zip.extractAllTo(this.tempExtensionDir, true);
-
-      const configPath = path.join(this.tempExtensionDir, "assets/config.js");
-      const configContent = `export const defaultConfig = ${JSON.stringify({
-        apiKey: this.opts.apiKey,
-        appId: "",
-        useCapsolver: this.opts.extensionConfig.useCapsolver ?? true,
-        manualSolving: this.opts.extensionConfig.manualSolving ?? false,
-        solvedCallback:
-          this.opts.extensionConfig.solvedCallback ?? "captchaSolvedCallback",
-        useProxy: this.opts.extensionConfig.useProxy ?? false,
-        proxyType: this.opts.extensionConfig.proxyType ?? "http",
-        hostOrIp: this.opts.extensionConfig.hostOrIp ?? "",
-        port: this.opts.extensionConfig.port ?? "",
-        proxyLogin: this.opts.extensionConfig.proxyLogin ?? "",
-        proxyPassword: this.opts.extensionConfig.proxyPassword ?? "",
-        enabledForBlacklistControl:
-          this.opts.extensionConfig.enabledForBlacklistControl ?? false,
-        blackUrlList: this.opts.extensionConfig.blackUrlList ?? [],
-        enabledForRecaptcha:
-          this.opts.extensionConfig.enabledForRecaptcha ?? true,
-        enabledForRecaptchaV3:
-          this.opts.extensionConfig.enabledForRecaptchaV3 ?? true,
-        enabledForImageToText:
-          this.opts.extensionConfig.enabledForImageToText ?? true,
-        enabledForAwsCaptcha:
-          this.opts.extensionConfig.enabledForAwsCaptcha ?? true,
-        enabledForCloudflare:
-          this.opts.extensionConfig.enabledForCloudflare ?? true,
-        reCaptchaMode: this.opts.extensionConfig.reCaptchaMode ?? "click",
-        hCaptchaMode: this.opts.extensionConfig.hCaptchaMode ?? "click",
-        reCaptchaDelayTime: this.opts.extensionConfig.reCaptchaDelayTime ?? 0,
-        hCaptchaDelayTime: this.opts.extensionConfig.hCaptchaDelayTime ?? 0,
-        textCaptchaDelayTime:
-          this.opts.extensionConfig.textCaptchaDelayTime ?? 0,
-        awsDelayTime: this.opts.extensionConfig.awsDelayTime ?? 0,
-        reCaptchaRepeatTimes:
-          this.opts.extensionConfig.reCaptchaRepeatTimes ?? 10,
-        reCaptcha3RepeatTimes:
-          this.opts.extensionConfig.reCaptcha3RepeatTimes ?? 10,
-        hCaptchaRepeatTimes:
-          this.opts.extensionConfig.hCaptchaRepeatTimes ?? 10,
-        funCaptchaRepeatTimes:
-          this.opts.extensionConfig.funCaptchaRepeatTimes ?? 10,
-        textCaptchaRepeatTimes:
-          this.opts.extensionConfig.textCaptchaRepeatTimes ?? 10,
-        awsRepeatTimes: this.opts.extensionConfig.awsRepeatTimes ?? 10,
-        reCaptcha3TaskType:
-          this.opts.extensionConfig.reCaptcha3TaskType ??
-          "ReCaptchaV3TaskProxyLess",
-        textCaptchaSourceAttribute:
-          this.opts.extensionConfig.textCaptchaSourceAttribute ??
-          "capsolver-image-to-text-source",
-        textCaptchaResultAttribute:
-          this.opts.extensionConfig.textCaptchaResultAttribute ??
-          "capsolver-image-to-text-result",
-        textCaptchaModule:
-          this.opts.extensionConfig.textCaptchaModule ?? "common",
-      })}`;
-
-      fs.writeFileSync(configPath, configContent);
+  public async onPluginRegistered(): Promise<void> {
+    if (this.opts.useExtension) {
+      await this._loadExtension();
     }
   }
 
   async beforeLaunch(options: any): Promise<any> {
-    if (this.opts.extensionConfig !== null) {
+    if (this.opts.useExtension) {
       options.headless = false;
       if (!options.args) options.args = [];
-
-      options.args.push(`--disable-extensions-except=${this.tempExtensionDir}`);
-      options.args.push(`--load-extension=${this.tempExtensionDir}`);
+      options.args.push(
+        `--disable-extensions-except=${this.tmd.replace(/\\/g, "/")}`
+      );
+      options.args.push(`--load-extension=${this.tmd.replace(/\\/g, "/")}`);
     }
 
     return options;
@@ -141,25 +80,94 @@ export class SolverPlugin extends PuppeteerExtraPlugin {
     const pages = await browser.pages();
     for (const page of pages) {
       this._addSolverToPage(page);
+      if (this.opts.useExtension) {
+        await this._addWaitForSolverExtensionToPage(page);
+      }
     }
   }
 
   async onPageCreated(page: Page): Promise<void> {
     await page.setBypassCSP(true);
     this._addSolverToPage(page);
+
+    if (this.opts.useExtension) {
+      await this._addWaitForSolverExtensionToPage(page);
+    }
   }
 
   private _addSolverToPage(page: Page): void {
     page.solver = (): Solver => {
-      return this.solver;
+      return this.s;
     };
 
     page.setSolver = async (opts: { apiKey: string }): Promise<void> => {
-      // @ts-ignore
-      this.solver = new Solver({
+      this.s = new Solver({
         apiKey: opts.apiKey.toString(),
       });
     };
+  }
+
+  private async _addWaitForSolverExtensionToPage(page: Page): Promise<void> {
+    await page.evaluateOnNewDocument(() => {
+      // @ts-ignore
+      window.captchaSolvedCallbackDone = false;
+      // @ts-ignore
+      window.captchaSolvedCallback = () => {
+        // @ts-ignore
+        window.captchaSolvedCallbackDone = true;
+      };
+    });
+
+    page.waitForSolverExtension = async ({
+      timeout = 60000,
+    }: {
+      timeout?: number;
+    }): Promise<boolean> => {
+      return new Promise(async (resolve, reject) => {
+        const startTime = Date.now();
+
+        while (true) {
+          const done = await page.evaluate(
+            // @ts-ignore
+            () => window.captchaSolvedCallbackDone
+          );
+          if (done) {
+            resolve(true);
+            return;
+          }
+
+          if (Date.now() - startTime > timeout) {
+            reject(
+              new SolverPluginError(
+                "Timeout: Solver extension did not load in time"
+              )
+            );
+            return;
+          }
+
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      });
+    };
+  }
+
+  private async _loadExtension(): Promise<void> {
+    this.tmd = path.join(os.tmpdir(), "capsolver-extension");
+    fs.ensureDirSync(this.tmd);
+    new AdmZip(this.ezp).extractAllTo(this.tmd, true);
+
+    const localPath = path.join(this.tmd, "assets/config.js");
+    const content = fs.readFileSync(localPath, "utf8");
+    const cooked = content
+      .replace(/apiKey: '',/, `apiKey: '${this.opts.apiKey}',`)
+      .replace(/appId: '',/, `appId: 'F9E44D7F-A254-4D75-87F6-54B84EE16676'`);
+
+    fs.writeFileSync(localPath, cooked);
+
+    const manifestPath = path.join(this.tmd, "manifest.json");
+    const manifestContent = fs.readJsonSync(manifestPath);
+    manifestContent.permissions.push("http://*/*");
+    fs.writeJsonSync(manifestPath, manifestContent);
   }
 }
 

@@ -2,8 +2,8 @@
   "name": "puppeteer-extra-plugin-capsolver-examples",
   "private": true,
   "scripts": {
-    "test:datadome-cookie": "node datadome_cookie.js",
-    "test:load-extension": "node load_extension.js"
+    "test:load-extension": "node load_extension.js",
+    "test:call-task": "node call_task.js"
   },
   "devDependencies": {
     "dotenv": "^16.4.5",

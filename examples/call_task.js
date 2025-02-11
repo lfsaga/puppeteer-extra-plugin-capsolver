@@ -4,7 +4,6 @@ const { SolverPlugin, SolverPluginError, SolverError } = require("../dist");
 puppeteer.use(
   new SolverPlugin({
     apiKey: process.env.APIKEY,
-    useExtension: true, // # this will auto-load the exntension and apiKey
   })
 );
 
@@ -20,9 +19,18 @@ puppeteer.use(
 
     await page.goto("https://google.com/recaptcha/api2/demo");
 
-    await page.waitForSolverExtension({
-      // timeout: 120000,
-    });
+    await page
+      .solver()
+      .recaptchav2proxyless({
+        websiteURL: "https://google.com/recaptcha/api2/demo",
+        websiteKey: "6Le-wvkSAAAAAPBMRTvw0Q4Muexq9bi0DJwx_mJ-",
+      })
+      .then((s) => {
+        console.log(s);
+      })
+      .catch((e) => {
+        console.error(e);
+      });
 
     await page.evaluate(() => {
       alert("Test finished");

@@ -1,57 +1,78 @@
-# capsolver puppeteer-extra plugin
+# puppeteer-extra-plugin-capsolver
 
-- **Manage to solve captcha challenges with AI in a puppeteer-extra app (captcha service based).**
-- ❗ An API key it's **required**. [**Get here.**](https://dashboard.capsolver.com/passport/register?inviteCode=CHhA_5os)
+manage to solve captcha challenges with puppeteer
 
-[![](https://img.shields.io/badge/2.0.1-puppeteer--extra--plugin--capsolver-darkgreen?logo=npm&logoColor=white)](https://www.npmjs.com/package/puppeteer-extra-plugin-capsolver)
+- ❗ API key it's **required** [**Get here**](https://dashboard.capsolver.com/passport/register?inviteCode=CHhA_5os)
+
+[![npm version](https://img.shields.io/npm/v/puppeteer-extra-plugin-capsolver)](https://www.npmjs.com/package/puppeteer-extra-plugin-capsolver)
 [![](https://img.shields.io/badge/documentation-docs.capsolver.com-darkgreen)](https://docs.capsolver.com/guide/getting-started.html)
 
-# ⬇️ Install
+## Install
 
 `npm i puppeteer puppeteer-extra puppeteer-extra-plugin-capsolver`
 
-# ✋ Usage
+## Usage
 
-❗ This plugin only helps retrieving solving tasks from api.capsolver.com based on [capsolver-npm](https://github.com/0qwertyy/capsolver-npm)
+#### Auto-load official Browser Extension
 
-- Initialize `SolverPlugin` and use it within `puppeteer-extra`.
-- Then call `await page.solver()` to retrieve and use the solver at any moment.
+- **How it works?** This feature would auto-load the extension from a zipped file into static temp folder on your disk, then would load from there on demand refreshing `apiKey` on load.
 
-```javascript
-const puppeteer = require("puppeteer-extra");
-const SolverPlugin = require("puppeteer-extra-plugin-capsolver")(
-  "CAP-XXXXXX ..."
+- **How to use with from the plugin?**
+  - Set `useExtension` on plugin init.
+  - Control the extension with `await page.waitForSolverExtension({ timeout })`.
+
+```typescript
+puppeteer.use(
+  new SolverPlugin({
+    apiKey: process.env.APIKEY,
+    useExtension: true, // # auto-loads browser extension
+  })
 );
-puppeteer.use(SolverPlugin);
 
-puppeteer.launch().then(async (browser) => {
-  try {
-    let page = await browser.newPage();
+// ...
 
-    await page.goto("https://example.com/");
-
-    let solution = await page.solver().hcaptchaproxyless({
-      websiteURL: "https://example.com/",
-      websiteKey: "00000000-0000-0000-0000-000000000000",
-    });
-
-    // use your solution (solution.gRecaptchaResponse in this case)
-    // ...
-  } catch (e) {
-    console.log(e);
-  } finally {
-    await browser.close();
-  }
+await page.waitForSolverExtension({
+  // timeout: 120000,
 });
 ```
 
-- Handle any `api.capsolver.com` supported task.
+#### Common usage: call the API
 
-## 🔨 Methods
+- **How it works?** Make use of [`capsolver-npm`](https://github.com/lfsaga/capsolver-npm) package to perform API calls for solution retrieving.
 
-- Figure out all the supported captcha tasks in [capsolver-npm#-native-methods](https://github.com/0qwertyy/capsolver-npm?tab=readme-ov-file#-native-methods).
+- **How to use with from the plugin?**
+  - Call to `await page.solver().<method>({})` from any Page.
+  - See methods and it's usage [here](https://github.com/lfsaga/capsolver-npm?tab=readme-ov-file#-updated-examples).
 
-#### Big Disclaimer
+```typescript
+puppeteer.use(
+  new SolverPlugin({
+    apiKey: process.env.APIKEY,
+  })
+);
+
+// ...
+
+await page
+  .solver()
+  .recaptchav2classification({
+    // ... parameters
+  })
+  .then((s: any) => {
+    console.log(s);
+  })
+  .catch((e: SolverError) => {
+    console.log(`Errored task Id: ${e.errorTaskId}`);
+    console.log(`Error Code: ${e.errorCode}`);
+    console.log(`Error description: ${e.errorDescription}`);
+  });
+```
+
+## 📁 Updated examples
+
+**Figure out [here](https://github.com/0qwertyy/puppeteer-extra-plugin-capsolver/tree/master/examples).**
+
+#### Disclaimer
 
 By using this package, you acknowledge and agree that:
 
