@@ -1,10 +1,13 @@
+require("dotenv").config();
 const puppeteer = require("puppeteer-extra");
 const { SolverPlugin, SolverPluginError, SolverError } = require("../dist");
 
 puppeteer.use(
   new SolverPlugin({
     apiKey: process.env.APIKEY,
-    useExtension: true, // # this will auto-load the exntension and apiKey
+    useExtension: true, // this will auto-load the extension and apiKey
+    useExtensionProxy: process.env.PROXYSTRING, // use custom proxy solving in extension
+    useExtensionReCaptchaMode: "token", // click or token
   })
 );
 
@@ -20,7 +23,7 @@ puppeteer.use(
 
     await page.goto("https://google.com/recaptcha/api2/demo");
 
-    await page.waitForSolverExtension({
+    await page.waitForSolverCallback({
       // timeout: 120000,
     });
 

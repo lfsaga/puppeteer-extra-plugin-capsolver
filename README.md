@@ -30,19 +30,21 @@ const {
 
 - **How to use with from the plugin?**
   - Set `useExtension` on plugin init.
-  - Control the extension with `await page.waitForSolverExtension({ timeout })`.
+  - Control the extension with `await page.waitForSolverCallback({ timeout })`.
 
 ```typescript
 puppeteer.use(
   new SolverPlugin({
     apiKey: process.env.APIKEY,
-    useExtension: true, // # auto-loads browser extension
+    useExtension: true, // this will auto-load the extension and apiKey
+    useExtensionProxy: process.env.PROXYSTRING, // force proxy string on solving
+    useExtensionReCaptchaMode: "token", // click or token mode
   })
 );
 
 // ...
 
-await page.waitForSolverExtension({
+await page.waitForSolverCallback({
   // timeout: 120000,
 });
 ```

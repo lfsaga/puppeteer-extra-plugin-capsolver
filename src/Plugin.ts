@@ -12,7 +12,7 @@ declare module "puppeteer" {
   interface Page {
     solver: () => Solver;
     setSolver: (opts: { apiKey: string }) => Promise<void>;
-    waitForSolverExtension?: ({
+    waitForSolverCallback?: ({
       timeout,
     }: {
       timeout?: number;
@@ -27,6 +27,7 @@ export class SolverPlugin extends PuppeteerExtraPlugin {
 
   constructor(opts: Partial<SolverPluginOptions> = {}) {
     super(opts);
+
     this.ezp = path.join(
       __dirname,
       "resources",
@@ -47,12 +48,20 @@ export class SolverPlugin extends PuppeteerExtraPlugin {
     return {
       apiKey: null,
       useExtension: false,
+      useExtensionProxy: null,
+      useExtensionReCaptchaMode: "click",
       availableFeatures,
       enabledFeatures: new Set([...availableFeatures]),
     };
   }
 
   public async onPluginRegistered(): Promise<void> {
+    if (!this.opts.apiKey || this.opts.apiKey.length < 4) {
+      throw new SolverPluginError(
+        "bad apiKey (doc at github.com/lfsaga/puppeteer-extra-plugin-capsolver)"
+      );
+    }
+
     if (this.opts.useExtension) {
       await this._loadExtension();
     }
@@ -81,7 +90,7 @@ export class SolverPlugin extends PuppeteerExtraPlugin {
     for (const page of pages) {
       this._addSolverToPage(page);
       if (this.opts.useExtension) {
-        await this._addWaitForSolverExtensionToPage(page);
+        await this._addWaitForSolverCallbackToPage(page);
       }
     }
   }
@@ -91,7 +100,7 @@ export class SolverPlugin extends PuppeteerExtraPlugin {
     this._addSolverToPage(page);
 
     if (this.opts.useExtension) {
-      await this._addWaitForSolverExtensionToPage(page);
+      await this._addWaitForSolverCallbackToPage(page);
     }
   }
 
@@ -107,7 +116,7 @@ export class SolverPlugin extends PuppeteerExtraPlugin {
     };
   }
 
-  private async _addWaitForSolverExtensionToPage(page: Page): Promise<void> {
+  private async _addWaitForSolverCallbackToPage(page: Page): Promise<void> {
     await page.evaluateOnNewDocument(() => {
       // @ts-ignore
       window.captchaSolvedCallbackDone = false;
@@ -118,7 +127,7 @@ export class SolverPlugin extends PuppeteerExtraPlugin {
       };
     });
 
-    page.waitForSolverExtension = async ({
+    page.waitForSolverCallback = async ({
       timeout = 60000,
     }: {
       timeout?: number;
@@ -158,12 +167,62 @@ export class SolverPlugin extends PuppeteerExtraPlugin {
 
     const localPath = path.join(this.tmd, "assets/config.js");
     const content = fs.readFileSync(localPath, "utf8");
-    const cooked = content
-      .replace(/apiKey: '',/, `apiKey: '${this.opts.apiKey}',`)
-      .replace(/appId: '',/, `appId: 'F9E44D7F-A254-4D75-87F6-54B84EE16676'`);
+
+    let cooked = this.updateApiKeyAndAppId(content);
+    cooked = this.updateProxySettings(cooked);
+    cooked = this.updateReCaptchaMode(cooked);
 
     fs.writeFileSync(localPath, cooked);
 
+    this.updateManifestPermissions();
+  }
+
+  private updateApiKeyAndAppId(content: string): string {
+    return content
+      .replace(/apiKey: '',/, `apiKey: '${this.opts.apiKey}',`)
+      .replace(/appId: '',/, `appId: 'F9E44D7F-A254-4D75-87F6-54B84EE16676',`);
+  }
+
+  private updateProxySettings(content: string): string {
+    if (!this.opts.useExtensionProxy) {
+      return content
+        .replace(/useProxy: true,/, `useProxy: false,`)
+        .replace(/hostOrIp: '[^']*',/, `hostOrIp: '',`)
+        .replace(/port: '[^']*',/, `port: '',`)
+        .replace(/proxyLogin: '[^']*',/, `proxyLogin: '',`)
+        .replace(/proxyPassword: '[^']*',/, `proxyPassword: '',`);
+    }
+
+    const [host, port, login, password] =
+      this.opts.useExtensionProxy.split(":");
+    return content
+      .replace(/useProxy: false,/, `useProxy: true,`)
+      .replace(/hostOrIp: '',/, `hostOrIp: '${host}',`)
+      .replace(/port: '',/, `port: '${port}',`)
+      .replace(/proxyLogin: '',/, `proxyLogin: '${login}',`)
+      .replace(/proxyPassword: '',/, `proxyPassword: '${password}',`);
+  }
+
+  private updateReCaptchaMode(content: string): string {
+    if (!this.opts.useExtensionReCaptchaMode) {
+      return content.replace(
+        /reCaptchaMode: '[^']*',/,
+        `reCaptchaMode: 'click',`
+      );
+    }
+
+    return content
+      .replace(
+        /reCaptchaMode: 'click',/,
+        `reCaptchaMode: '${this.opts.useExtensionReCaptchaMode}',`
+      )
+      .replace(
+        /reCaptchaMode: 'token',/,
+        `reCaptchaMode: '${this.opts.useExtensionReCaptchaMode}',`
+      );
+  }
+
+  private updateManifestPermissions(): void {
     const manifestPath = path.join(this.tmd, "manifest.json");
     const manifestContent = fs.readJsonSync(manifestPath);
     manifestContent.permissions.push("http://*/*");

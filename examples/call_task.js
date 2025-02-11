@@ -1,3 +1,4 @@
+require("dotenv").config();
 const puppeteer = require("puppeteer-extra");
 const { SolverPlugin, SolverPluginError, SolverError } = require("../dist");
 
