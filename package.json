@@ -11,7 +11,7 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "axios": "^0.27.2",
-    "capsolver-npm": "^2.1.5",
+    "capsolver-npm": "^2.1.9",
     "dotenv": "^16.4.5",
     "fs-extra": "^11.3.0",
     "puppeteer": "^19.1.2",
